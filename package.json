@@ -30,12 +30,14 @@
         "build": "npx tsc && vite build ",
         "lint": "biome lint src/**/*.{js,jsx,ts,tsx}",
         "lint:fix": "biome lint --write src/**/*/.{js,jsx,ts,tsx}",
-        "format": "biome format --write src/**/*/.{js,jsx,ts,tsx}"
+        "format": "biome format --write src/**/*/.{js,jsx,ts,tsx}",
+        "test": "jest --coverage"
     },
     "devDependencies": {
         "@biomejs/biome": "1.9.4",
         "@rollup/plugin-terser": "^0.4.4",
         "@types/diff-match-patch": "^1.0.36",
+        "@types/jest": "^29.5.14",
         "@types/node": "^22.13.1",
         "browserslist": "^4.24.4",
         "glob": "^11.0.1",
