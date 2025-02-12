@@ -1,0 +1,40 @@
+{
+    "compilerOptions": {
+        "target": "es6",
+        "types": ["node"],
+        "declaration": true,
+        "outDir": "lib",
+        "isolatedModules": true,
+        "skipLibCheck": false,
+
+        "allowJs": false,
+        // "skipLibCheck": true,
+        "esModuleInterop": false,
+        "strict": true,
+        "forceConsistentCasingInFileNames": true,
+        "noEmit": true,
+        "jsx": "preserve",
+        "baseUrl": ".",
+        "module": "ESNext",
+        "moduleResolution": "Node",
+        "allowSyntheticDefaultImports": true,
+        "resolveJsonModule": true,
+        "strictNullChecks": true,
+        "strictFunctionTypes": true,
+        "strictBindCallApply": true,
+        "noImplicitAny": true,
+        "noImplicitThis": true,
+        "noUnusedLocals": false,
+        "noImplicitReturns": true,
+        "noUnusedParameters": true,
+        // NOTE: was true disabled for now because of biome
+        "noUncheckedIndexedAccess": false,
+        "noFallthroughCasesInSwitch": true,
+        "noPropertyAccessFromIndexSignature": true,
+        "experimentalDecorators": false,
+        "verbatimModuleSyntax": true,
+        "useUnknownInCatchVariables": false
+    },
+    "include": ["src"],
+    "exclude": ["lib", "node_modules"]
+}

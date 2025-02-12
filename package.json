@@ -1,0 +1,54 @@
+{
+    "name": "asma-jsondiffpatch",
+    "version": "1.0.0",
+    "description": "Diff & Patch for Javascript objects",
+    "homepage": "https://bitbucket.org/carasent/asma-jsondiffpatch#readme",
+    "bugs": {
+        "url": "https://bitbucket.org/carasent/asma-jsondiffpatch/issues"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+ssh://git@bitbucket.org/carasent/asma-jsondiffpatch.git"
+    },
+    "license": "UNLICENSED",
+    "author": "asma-team",
+    "type": "module",
+    "sideEffects": [
+        "*.css"
+    ],
+    "main": "./lib/jsondiffpatch.js",
+    "types": "./lib/index.d.ts",
+    "exports": {
+        ".": {
+            "import": "./lib/jsondiffpatch.js"
+        },
+        "./with-text-diffs": "./lib/with-text-diffs.js",
+        "./formatters/*": "./lib/formatters/*.js",
+        "./formatters/styles/*.css": "./lib/formatters/styles/*.css"
+    },
+    "scripts": {
+        "build": "npx tsc && vite build ",
+        "lint": "biome lint src/**/*.{js,jsx,ts,tsx}",
+        "lint:fix": "biome lint --write src/**/*/.{js,jsx,ts,tsx}",
+        "format": "biome format --write src/**/*/.{js,jsx,ts,tsx}"
+    },
+    "devDependencies": {
+        "@biomejs/biome": "1.9.4",
+        "@rollup/plugin-terser": "^0.4.4",
+        "@types/diff-match-patch": "^1.0.36",
+        "@types/node": "^22.13.1",
+        "browserslist": "^4.24.4",
+        "glob": "^11.0.1",
+        "lightningcss": "^1.29.1",
+        "node": "^20.18.3",
+        "typescript": "^5.7.3",
+        "vite": "^6.1.0",
+        "vite-plugin-dts": "^4.5.0",
+        "vite-plugin-static-copy": "^2.2.0",
+        "vite-tsconfig-paths": "^5.1.4"
+    },
+    "dependencies": {
+        "chalk": "^5.4.1",
+        "diff-match-patch": "^1.0.5"
+    }
+}
