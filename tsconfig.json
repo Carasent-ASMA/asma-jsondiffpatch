@@ -14,6 +14,11 @@
         "forceConsistentCasingInFileNames": true,
         "noEmit": true,
         "baseUrl": ".",
+        "paths": {
+            "jsondiffpatch/with-text-diffs": ["lib/with-text-diffs"],
+            "jsondiffpatch/filters/*": ["lib/filters/*"],
+            "jsondiffpatch/formatters/*": ["lib/formatters/*"]
+        },
         "module": "ESNext",
         "moduleResolution": "bundler",
         "allowSyntheticDefaultImports": true,
