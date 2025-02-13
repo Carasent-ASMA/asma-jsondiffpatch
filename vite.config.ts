@@ -30,6 +30,8 @@ export default defineConfig({
         tsConfigPaths(),
         dts({
             insertTypesEntry: true,
+            rollupTypes: true,
+            outDir: 'lib',
             exclude: ['node_modules/**/*'],
         }),
         viteStaticCopy({
@@ -63,7 +65,6 @@ export default defineConfig({
             },
             name: 'jsondiffpatch',
             formats: ['es'],
-            // fileName: (format) => `jsondiffpatch.${format}.js`,
         },
         outDir: resolve(__dirname, 'lib'),
         emptyOutDir: true,
