@@ -1,6 +1,7 @@
 import type dmp from 'diff-match-patch'
 import type Context from './contexts/context.js'
 import type DiffContext from './contexts/diff.js'
+import { HASH_PREFIX, INDEX_PREFIX, INSERT_PREFIX, MODIFY_PREFIX, REMOVE_PREFIX } from './filters/arrays.js'
 
 export interface Options {
     objectHash?: (item: object, index?: number) => string | undefined
@@ -34,6 +35,28 @@ export interface ArrayDelta {
 export type ArrayDeltaIndex = '_t' | number | `${number}` | `_${number}`
 
 export type MovedDelta = [unknown, number, 3]
+
+export interface HashArrayDelta {
+    _t: 'a'
+    [index: HashArrayDeltaIndex]: HashDelta
+}
+
+export type HashArrayDeltaIndex =
+    `${typeof REMOVE_PREFIX | typeof INSERT_PREFIX | typeof MODIFY_PREFIX}${typeof INDEX_PREFIX | typeof HASH_PREFIX}${string}`
+
+export type HashArrayMovedDelta = [unknown, number, number, 3]
+
+export type HashArrayDeletedDelta = [unknown, number, 0, 0]
+
+export type HashDelta =
+    | AddedDelta
+    | ModifiedDelta
+    | HashArrayDeletedDelta
+    | ObjectDelta
+    | HashArrayDelta
+    | HashArrayMovedDelta
+    | TextDiffDelta
+    | undefined
 
 export type TextDiffDelta = [string, 0, 2]
 

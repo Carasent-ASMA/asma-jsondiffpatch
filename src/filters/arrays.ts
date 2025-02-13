@@ -11,13 +11,42 @@ import type {
     DeletedDelta,
     Delta,
     Filter,
+    HashArrayDeletedDelta,
+    HashArrayDelta,
+    HashArrayDeltaIndex,
+    HashArrayMovedDelta,
+    HashDelta,
     ModifiedDelta,
     MovedDelta,
     ObjectDelta,
+    Options,
     TextDiffDelta,
 } from '../types.js'
 
+const ARRAY_REMOVE = 0
 const ARRAY_MOVE = 3
+
+export const REMOVE_PREFIX = '-'
+export const INSERT_PREFIX = '+'
+export const MODIFY_PREFIX = '!'
+
+export const INDEX_PREFIX = '@'
+export const HASH_PREFIX = '#'
+
+function hashOrIndex(
+    object: Record<string, unknown>,
+    index: number,
+    matchContext: Options,
+): `${typeof INDEX_PREFIX | typeof HASH_PREFIX}${string}` {
+    let hash
+    if (matchContext.objectHash) {
+        hash = matchContext.objectHash(object, index)
+    }
+    if (hash !== undefined) {
+        return `${HASH_PREFIX}${hash}`
+    }
+    return `${INDEX_PREFIX}${index}`
+}
 
 function arraysHaveMatchByRef(array1: readonly unknown[], array2: readonly unknown[], len1: number, len2: number) {
     for (let index1 = 0; index1 < len1; index1++) {
@@ -347,6 +376,113 @@ export const collectChildrenPatchFilter: Filter<PatchContext> = function collect
     context.setResult(array).exit()
 }
 collectChildrenPatchFilter.filterName = 'arraysCollectChildren'
+
+export function hashPatchFilter(context: PatchContext) {
+    if (!context.nested) {
+        return
+    }
+
+    const nestedDelta = context.delta as ObjectDelta | HashArrayDelta
+
+    if (nestedDelta._t !== 'a') {
+        return
+    }
+    let index: HashArrayDeltaIndex | '_t' | number
+
+    const delta = nestedDelta as HashArrayDelta
+    const array = context.left as unknown[]
+
+    const matchContext = {
+        objectHash: context.options && context.options.objectHash,
+    }
+
+    // first, separate removals, insertions and modifications
+    const toRemove: Record<string, boolean> = {}
+    let toInsert = []
+    const toModify: Record<string, HashDelta> = {}
+    for (index in delta) {
+        if (index !== '_t' && typeof index !== 'number') {
+            if (index[0] === REMOVE_PREFIX) {
+                // removed item from original array
+                const deltaWithFourItems = delta[index] as HashArrayDeletedDelta | HashArrayMovedDelta | undefined
+                if (deltaWithFourItems?.[3] === ARRAY_REMOVE || deltaWithFourItems?.[3] === ARRAY_MOVE) {
+                    toRemove[index.slice(1)] = true
+                } else {
+                    throw new Error(
+                        `only removal or move can be applied at original array indices, invalid diff type: ${deltaWithFourItems?.[3]}`,
+                    )
+                }
+            } else {
+                if (index[0] === INSERT_PREFIX) {
+                    // added item at new array
+                    toInsert.push({
+                        index: parseInt(index.slice(2), 10),
+                        value: (delta[index] as AddedDelta | undefined)?.[0],
+                    })
+                } else if (index[0] === MODIFY_PREFIX) {
+                    // modified item at new array
+                    toModify[index.slice(1)] = delta[index]
+                }
+            }
+        }
+    }
+
+    // remove items, by key
+    let hashKey
+    let indexDiff: HashArrayMovedDelta | undefined
+    // let indexDiff
+    let toRemoveIndexes = []
+    for (index = 0; index < array.length; index++) {
+        hashKey = hashOrIndex(array[index] as Record<string, unknown>, index, matchContext)
+        if (toRemove[hashKey]) {
+            toRemoveIndexes.push(index)
+            indexDiff = delta[`${REMOVE_PREFIX}${hashKey}`] as HashArrayMovedDelta
+            if (indexDiff[3] === ARRAY_MOVE) {
+                // reinsert later
+                toInsert.push({
+                    index: indexDiff[2],
+                    value: array[index],
+                })
+            }
+            continue
+        }
+    }
+
+    // remove items, in reverse order to avoid sawing our own floor
+    toRemoveIndexes = toRemoveIndexes.sort(compare.numerically)
+    for (index = toRemoveIndexes.length - 1; index >= 0; index--) {
+        const indexToRemove = toRemoveIndexes[index]
+        if (indexToRemove) {
+            array.splice(indexToRemove, 1)
+        }
+    }
+
+    // insert items, in reverse order to avoid moving our own floor
+    toInsert = toInsert.sort(compare.numericallyBy('index'))
+    const toInsertLength = toInsert.length
+    for (index = 0; index < toInsertLength; index++) {
+        const insertion = toInsert[index]
+        array.splice(insertion?.index, 0, insertion?.value)
+    }
+
+    // apply modifications
+    const keysToModify = Object.keys(toModify)
+    const toModifyLength = keysToModify.length
+    for (let j = 0; toModifyLength && j < array.length; j++) {
+        hashKey = hashOrIndex(array[j] as Record<string, unknown>, j, matchContext)
+        if (toModify[hashKey]) {
+            const child = new PatchContext((context.left as [])[j], toModify[hashKey])
+            context.push(child, j)
+        }
+    }
+
+    if (!context.children) {
+        context.setResult(context.left).exit()
+        return
+    }
+    context.exit()
+}
+hashPatchFilter.filterName = 'arrays'
 
 export const reverseFilter: Filter<ReverseContext> = function arraysReverseFilter(context) {
     if (!context.nested) {

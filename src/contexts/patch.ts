@@ -1,14 +1,14 @@
-import type { Delta } from '../types.js'
+import type { Delta, HashDelta } from '../types.js'
 import Context from './context.js'
 
 class PatchContext extends Context<unknown> {
     left: unknown
-    delta: Delta
+    delta: Delta | HashDelta
     pipe: 'patch'
 
     nested?: boolean
 
-    constructor(left: unknown, delta: Delta) {
+    constructor(left: unknown, delta: Delta | HashDelta) {
         super()
         this.left = left
         this.delta = delta
