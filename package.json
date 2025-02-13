@@ -1,6 +1,6 @@
 {
     "name": "asma-jsondiffpatch",
-    "version": "1.0.2",
+    "version": "1.0.3",
     "description": "Diff & Patch for Javascript objects",
     "homepage": "https://bitbucket.org/carasent/asma-jsondiffpatch#readme",
     "bugs": {
