@@ -30,8 +30,6 @@ export default defineConfig({
         tsConfigPaths(),
         dts({
             insertTypesEntry: true,
-            rollupTypes: true,
-            outDir: 'lib',
             exclude: ['node_modules/**/*'],
         }),
         viteStaticCopy({
