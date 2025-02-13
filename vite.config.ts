@@ -12,6 +12,12 @@ import * as packageJson from './package.json'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
+const filterFiles = glob.sync('src/filters/*.ts').reduce((acc, file) => {
+    const name = file.replace('src/', '').replace('.ts', '')
+    acc[name] = resolve(__dirname, file)
+    return acc
+}, {})
+
 const formatterFiles = glob.sync('src/formatters/*.ts').reduce((acc, file) => {
     const name = file.replace('src/', '').replace('.ts', '')
     acc[name] = resolve(__dirname, file)
@@ -52,6 +58,7 @@ export default defineConfig({
             entry: {
                 jsondiffpatch: resolve(__dirname, 'src/index.ts'),
                 'with-text-diffs': resolve(__dirname, 'src/with-text-diffs.ts'),
+                ...filterFiles,
                 ...formatterFiles,
             },
             name: 'jsondiffpatch',
