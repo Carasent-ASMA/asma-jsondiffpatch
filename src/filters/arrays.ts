@@ -46,21 +46,6 @@ function hashOrIndex(object: Record<string, unknown>, index: number, matchContex
     return `${INDEX_PREFIX}${index}`
 }
 
-const arrayIndexOf =
-    typeof Array.prototype.indexOf === 'function'
-        ? function (array: unknown[], item: unknown) {
-              return array.indexOf(item)
-          }
-        : function (array: unknown[], item: unknown) {
-              const length = array.length
-              for (let i = 0; i < length; i++) {
-                  if (array[i] === item) {
-                      return i
-                  }
-              }
-              return -1
-          }
-
 function arraysHaveMatchByRef(array1: readonly unknown[], array2: readonly unknown[], len1: number, len2: number) {
     for (let index1 = 0; index1 < len1; index1++) {
         const val1 = array1[index1]
@@ -388,7 +373,7 @@ export function hashDiffFilter(context: DiffContext) {
         _t: 'a',
     }
     for (index = commonHead; index < len1 - commonTail; index++) {
-        if (arrayIndexOf(seq.indices1, index - commonHead) < 0) {
+        if (seq.indices1.indexOf(index - commonHead) < 0) {
             // removed
             hashKey = hashOrIndex(array1[index] as Record<string, unknown>, index, matchContext)
             result[`${REMOVE_PREFIX}${hashKey}`] = [array1[index], index, 0, ARRAY_REMOVE]
@@ -407,7 +392,7 @@ export function hashDiffFilter(context: DiffContext) {
 
     const removedItemsLength = removedItems.length
     for (index = commonHead; index < len2 - commonTail; index++) {
-        const indexOnArray2 = arrayIndexOf(seq.indices2, index - commonHead)
+        const indexOnArray2 = seq.indices2.indexOf(index - commonHead)
         if (indexOnArray2 < 0) {
             // added, try to match with a removed item and register as position move
             let isMove = false
