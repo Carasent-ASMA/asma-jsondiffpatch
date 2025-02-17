@@ -10,7 +10,7 @@ import * as dates from './filters/dates.js'
 import * as nested from './filters/nested.js'
 import * as texts from './filters/texts.js'
 import * as trivial from './filters/trivial.js'
-import type { Delta, Options } from './types.js'
+import type { Delta, HashDelta, Options } from './types.js'
 
 class DiffPatcher {
     processor: Processor
@@ -63,15 +63,15 @@ class DiffPatcher {
         return this.processor.process(new DiffContext(left, right))
     }
 
-    patch(left: unknown, delta: Delta) {
+    patch(left: unknown, delta: Delta | HashDelta) {
         return this.processor.process(new PatchContext(left, delta))
     }
 
-    reverse(delta: Delta) {
+    reverse(delta: Delta | HashDelta) {
         return this.processor.process(new ReverseContext(delta))
     }
 
-    unpatch(right: unknown, delta: Delta) {
+    unpatch(right: unknown, delta: Delta | HashDelta) {
         return this.patch(right, this.reverse(delta))
     }
 

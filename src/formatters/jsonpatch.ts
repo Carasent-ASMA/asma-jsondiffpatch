@@ -1,4 +1,4 @@
-import type { AddedDelta, ArrayDelta, Delta, ModifiedDelta, MovedDelta, ObjectDelta } from '../types.js'
+import type { AddedDelta, ArrayDelta, Delta, HashDelta, ModifiedDelta, MovedDelta, ObjectDelta } from '../types.js'
 import BaseFormatter from './base.js'
 import type { BaseFormatterContext } from './base.js'
 
@@ -199,11 +199,12 @@ const reorderOps = (diff: Op[]) => {
 
 let defaultInstance: JSONFormatter | undefined
 
-export const format = (delta: Delta, left?: unknown) => {
+export const format = (delta: Delta | HashDelta, left?: unknown) => {
     if (!defaultInstance) {
         defaultInstance = new JSONFormatter()
     }
-    return reorderOps(defaultInstance.format(delta, left))
+    // FIXME: this needs to support HashDelta too right now it will work only with a normal delta
+    return reorderOps(defaultInstance.format(delta as Delta, left))
 }
 
 export const log = (delta: Delta, left?: unknown) => {

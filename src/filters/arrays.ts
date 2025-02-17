@@ -16,6 +16,8 @@ import type {
     HashArrayDeltaIndex,
     HashArrayMovedDelta,
     HashDelta,
+    HashIndex,
+    HashPrefixTypes,
     ModifiedDelta,
     MovedDelta,
     ObjectDelta,
@@ -33,11 +35,7 @@ export const MODIFY_PREFIX = '!'
 export const INDEX_PREFIX = '@'
 export const HASH_PREFIX = '#'
 
-function hashOrIndex(
-    object: Record<string, unknown>,
-    index: number,
-    matchContext: Options,
-): `${typeof INDEX_PREFIX | typeof HASH_PREFIX}${string}` {
+function hashOrIndex(object: Record<string, unknown>, index: number, matchContext: Options): HashIndex {
     let hash
     if (matchContext.objectHash) {
         hash = matchContext.objectHash(object, index)
@@ -47,6 +45,21 @@ function hashOrIndex(
     }
     return `${INDEX_PREFIX}${index}`
 }
+
+const arrayIndexOf =
+    typeof Array.prototype.indexOf === 'function'
+        ? function (array: unknown[], item: unknown) {
+              return array.indexOf(item)
+          }
+        : function (array: unknown[], item: unknown) {
+              const length = array.length
+              for (let i = 0; i < length; i++) {
+                  if (array[i] === item) {
+                      return i
+                  }
+              }
+              return -1
+          }
 
 function arraysHaveMatchByRef(array1: readonly unknown[], array2: readonly unknown[], len1: number, len2: number) {
     for (let index1 = 0; index1 < len1; index1++) {
@@ -107,6 +120,19 @@ function matchItems(
     return hash1 === hash2
 }
 
+/**
+ * This `arrays` filter is the default variant for `diff` and
+ * should be used when no custom index/hash is desired for the array indices
+ *
+ * The array delta will generate indices like these
+ * @example
+ * delta = {
+ *   _t: 'a',
+ *   0: innerDelta0,
+ *   1: innerDelta1,
+ *   2: innerDelta2,
+ * };
+ */
 export const diffFilter: Filter<DiffContext> = function arraysDiffFilter(context) {
     if (!context.leftIsArray) {
         return
@@ -257,6 +283,176 @@ export const diffFilter: Filter<DiffContext> = function arraysDiffFilter(context
 }
 diffFilter.filterName = 'arrays'
 
+/**
+ * This `arrays` filter is the hash variant for `diff` and
+ * should be used when custom index/hash is desired for the array indices
+ *
+ * The hash array delta will generate indices like these
+ * @example
+ * delta = {
+ *   _t: 'a',
+ *   // number index with prefixes as hash
+ *   "+@4": innerDelta0,
+ *   // numeric db id with prefixes as hash
+ *   "!#5198": innerDelta1,
+ *   // uuid with prefixes as hash
+ *   "-#f3f2e850-b5d4-11ef-ac7e-96584d5248b2": innerDelta2,
+ * };
+ */
+export function hashDiffFilter(context: DiffContext) {
+    if (!context.leftIsArray) {
+        return
+    }
+
+    const matchContext: MatchContext = {
+        objectHash: context.options && context.options.objectHash,
+        matchByPosition: context.options && context.options.matchByPosition,
+    }
+    let commonHead = 0
+    let commonTail = 0
+    let index: number
+    let index1: number
+    let index2: number
+    const array1 = context.left as readonly unknown[]
+    const array2 = context.right as readonly unknown[]
+    const len1 = array1.length
+    const len2 = array2.length
+
+    let child: DiffContext
+    let hashKey: HashIndex
+
+    if (len1 > 0 && len2 > 0 && !matchContext.objectHash && typeof matchContext.matchByPosition !== 'boolean') {
+        matchContext.matchByPosition = !arraysHaveMatchByRef(array1, array2, len1, len2)
+    }
+
+    // separate common head
+    while (commonHead < len1 && commonHead < len2 && matchItems(array1, array2, commonHead, commonHead, matchContext)) {
+        index = commonHead
+        child = new DiffContext(array1[index], array2[index])
+        hashKey = hashOrIndex(array1[index] as Record<string, unknown>, index, matchContext)
+        context.push(child, MODIFY_PREFIX + hashKey)
+        commonHead++
+    }
+    // separate common tail
+    while (
+        commonTail + commonHead < len1 &&
+        commonTail + commonHead < len2 &&
+        matchItems(array1, array2, len1 - 1 - commonTail, len2 - 1 - commonTail, matchContext)
+    ) {
+        index1 = len1 - 1 - commonTail
+        index2 = len2 - 1 - commonTail
+        child = new DiffContext(array1[index1], array2[index2])
+        hashKey = hashOrIndex(array2[index2] as Record<string, unknown>, index2, matchContext)
+        context.push(child, MODIFY_PREFIX + hashKey)
+        commonTail++
+    }
+    let result: HashArrayDelta | undefined
+    if (commonHead + commonTail === len1) {
+        if (len1 === len2) {
+            // arrays are identical
+            context.setResult(undefined).exit()
+            return
+        }
+        // trivial case, a block (1 or more consecutive items) was added
+        result = result || {
+            _t: 'a',
+        }
+        for (index = commonHead; index < len2 - commonTail; index++) {
+            result[`${INSERT_PREFIX}${INDEX_PREFIX}${index}`] = [array2[index]]
+        }
+        context.setResult(result).exit()
+        return
+    }
+    if (commonHead + commonTail === len2) {
+        // trivial case, a block (1 or more consecutive items) was removed
+        result = result || {
+            _t: 'a',
+        }
+        for (index = commonHead; index < len1 - commonTail; index++) {
+            hashKey = hashOrIndex(array1[index] as Record<string, unknown>, index, matchContext)
+            result[`${REMOVE_PREFIX}${hashKey}`] = [array1[index], index, 0, ARRAY_REMOVE]
+        }
+        context.setResult(result).exit()
+        return
+    }
+    // reset hash cache
+    matchContext.hashCache1 = undefined
+    matchContext.hashCache2 = undefined
+
+    // diff is not trivial, find the LCS (Longest Common Subsequence)
+    const trimmed1 = array1.slice(commonHead, len1 - commonTail)
+    const trimmed2 = array2.slice(commonHead, len2 - commonTail)
+    const seq = lcs.get(trimmed1, trimmed2, matchItems, matchContext)
+    const removedItems = []
+    result = result || {
+        _t: 'a',
+    }
+    for (index = commonHead; index < len1 - commonTail; index++) {
+        if (arrayIndexOf(seq.indices1, index - commonHead) < 0) {
+            // removed
+            hashKey = hashOrIndex(array1[index] as Record<string, unknown>, index, matchContext)
+            result[`${REMOVE_PREFIX}${hashKey}`] = [array1[index], index, 0, ARRAY_REMOVE]
+            removedItems.push(index)
+        }
+    }
+
+    let detectMove = true
+    if (context.options && context.options.arrays && context.options.arrays.detectMove === false) {
+        detectMove = false
+    }
+    let includeValueOnMove = false
+    if (context.options && context.options.arrays && context.options.arrays.includeValueOnMove) {
+        includeValueOnMove = true
+    }
+
+    const removedItemsLength = removedItems.length
+    for (index = commonHead; index < len2 - commonTail; index++) {
+        const indexOnArray2 = arrayIndexOf(seq.indices2, index - commonHead)
+        if (indexOnArray2 < 0) {
+            // added, try to match with a removed item and register as position move
+            let isMove = false
+            if (detectMove && removedItemsLength > 0) {
+                for (let removeItemIndex1 = 0; removeItemIndex1 < removedItemsLength; removeItemIndex1++) {
+                    index1 = removedItems[removeItemIndex1]
+                    if (matchItems(trimmed1, trimmed2, index1 - commonHead, index - commonHead, matchContext)) {
+                        hashKey = hashOrIndex(array1[index1] as Record<string, unknown>, index1, matchContext)
+                        // store position move as: [originalValue, originalPosition, newPosition, ARRAY_MOVE]
+                        const movedDelta = result[`${REMOVE_PREFIX}${hashKey}`] as HashArrayMovedDelta
+                        // const movedDelta = result[`${REMOVE_PREFIX}${hashKey}`]
+                        movedDelta?.splice(1, 3, index1, index, ARRAY_MOVE)
+                        if (!includeValueOnMove) {
+                            // don't include moved value on diff, to save bytes
+                            const item = result[`${REMOVE_PREFIX}${hashKey}`]
+                            if (item) item[0] = ''
+                        }
+
+                        index2 = index
+                        child = new DiffContext((context.left as [])[index1], (context.right as [])[index2])
+                        context.push(child, MODIFY_PREFIX + hashKey)
+                        removedItems.splice(removeItemIndex1, 1)
+                        isMove = true
+                        break
+                    }
+                }
+            }
+            if (!isMove) {
+                // added
+                result[`${INSERT_PREFIX}${INDEX_PREFIX}${index}`] = [array2[index]]
+            }
+        } else {
+            // match, do inner diff
+            index1 = seq.indices1[indexOnArray2] + commonHead
+            index2 = seq.indices2[indexOnArray2] + commonHead
+            child = new DiffContext((context.left as [])[index1], (context.right as [])[index2])
+            hashKey = hashOrIndex(array2[index2] as Record<string, unknown>, index2, matchContext)
+            context.push(child, MODIFY_PREFIX + hashKey)
+        }
+    }
+
+    context.setResult(result).exit()
+}
+hashDiffFilter.filterName = 'arrays'
+
 const compare = {
     numerically(this: void, a: number, b: number) {
         return a - b
@@ -266,6 +462,19 @@ const compare = {
     },
 }
 
+/**
+ * This `arrays` filter is the default variant for `patch` and
+ * should be used when no custom index/hash is desired for the array indices
+ *
+ * The array delta needs to have indices like these
+ * @example
+ * delta = {
+ *   _t: 'a',
+ *   0: innerDelta0,
+ *   1: innerDelta1,
+ *   2: innerDelta2,
+ * };
+ */
 export const patchFilter: Filter<PatchContext> = function nestedPatchFilter(context) {
     if (!context.nested) {
         return
@@ -377,6 +586,22 @@ export const collectChildrenPatchFilter: Filter<PatchContext> = function collect
 }
 collectChildrenPatchFilter.filterName = 'arraysCollectChildren'
 
+/**
+ * This `arrays` filter is the hash variant for `patch` and
+ * should be used when custom index/hash is desired for the array indices
+ *
+ * The array delta needs to have indices like these
+ * @example
+ * delta = {
+ *   _t: 'a',
+ *   // number index with prefixes as hash
+ *   "+@4": innerDelta0,
+ *   // numeric db id with prefixes as hash
+ *   "!#5198": innerDelta1,
+ *   // uuid with prefixes as hash
+ *   "-#f3f2e850-b5d4-11ef-ac7e-96584d5248b2": innerDelta2,
+ * };
+ */
 export function hashPatchFilter(context: PatchContext) {
     if (!context.nested) {
         return
@@ -387,7 +612,10 @@ export function hashPatchFilter(context: PatchContext) {
     if (nestedDelta._t !== 'a') {
         return
     }
-    let index: HashArrayDeltaIndex | '_t' | number
+    // let index: HashArrayDeltaIndex | '_t' | number
+    // FIXME: type number causes the for in to error as it expects type string or any
+    // biome-ignore lint/suspicious/noExplicitAny:
+    let index: any
 
     const delta = nestedDelta as HashArrayDelta
     const array = context.left as unknown[]
@@ -484,6 +712,19 @@ export function hashPatchFilter(context: PatchContext) {
 }
 hashPatchFilter.filterName = 'arrays'
 
+/**
+ * This `arrays` filter is the default variant for `reverse` and
+ * should be used when no custom index/hash is desired for the array indices
+ *
+ * The array delta needs to have indices like these
+ * @example
+ * delta = {
+ *   _t: 'a',
+ *   0: innerDelta0,
+ *   1: innerDelta1,
+ *   2: innerDelta2,
+ * };
+ */
 export const reverseFilter: Filter<ReverseContext> = function arraysReverseFilter(context) {
     if (!context.nested) {
         const nonNestedDelta = context.delta as AddedDelta | ModifiedDelta | DeletedDelta | MovedDelta | TextDiffDelta
@@ -518,7 +759,11 @@ export const reverseFilter: Filter<ReverseContext> = function arraysReverseFilte
 }
 reverseFilter.filterName = 'arrays'
 
-const reverseArrayDeltaIndex = (delta: ArrayDelta, index: string | number | undefined, itemDelta: Delta) => {
+const reverseArrayDeltaIndex = (
+    delta: ArrayDelta,
+    index: string | number | undefined,
+    itemDelta: Delta | HashDelta,
+) => {
     // TODO: this needs to be checked so it doesn't break something
     if (!index) return -1
     if (typeof index === 'string' && index[0] === '_') {
@@ -557,6 +802,10 @@ const reverseArrayDeltaIndex = (delta: ArrayDelta, index: string | number | unde
     return reverseIndex
 }
 
+/**
+ * This `arraysCollectChildren` filter is the default variant for `reverse` and
+ * should be used in combination with `reverseFilter` and NOT `hashReverseFilter`
+ */
 export const collectChildrenReverseFilter: Filter<ReverseContext> = (context) => {
     if (!context || !context.children) {
         return
@@ -579,10 +828,219 @@ export const collectChildrenReverseFilter: Filter<ReverseContext> = (context) =>
             name = reverseArrayDeltaIndex(arrayDelta, child.childName, child.result)
         }
         if (delta[name] !== child.result) {
-            // There's no way to type this well.
-            delta[name as number] = child.result
+            // There's no way to type this well. Added as delta cast to exclude the hash delta variants
+            delta[name as number] = child.result as Delta
         }
     }
     context.setResult(delta).exit()
 }
 collectChildrenReverseFilter.filterName = 'arraysCollectChildren'
+
+/**
+ * This `arrays` filter is the hash variant for `reverse` and
+ * should be used when custom index/hash is desired for the array indices
+ * and requires `collectChildrenHashReverseFilter` to be used with it as well
+ *
+ * The array delta needs to have indices like these
+ * @example
+ * delta = {
+ *   _t: 'a',
+ *   // number index with prefixes as hash
+ *   "+@4": innerDelta0,
+ *   // numeric db id with prefixes as hash
+ *   "!#5198": innerDelta1,
+ *   // uuid with prefixes as hash
+ *   "-#f3f2e850-b5d4-11ef-ac7e-96584d5248b2": innerDelta2,
+ * };
+ */
+export function hashReverseFilter(context: ReverseContext) {
+    if (!context.nested) {
+        return
+    }
+
+    const nestedDelta = context.delta as ObjectDelta | HashArrayDelta
+    if (nestedDelta._t !== 'a') {
+        return
+    }
+
+    const arrayDelta = nestedDelta as HashArrayDelta
+    // let name: HashArrayDeltaIndex | '_t'
+    // FIXME: type number causes the for in to error as it expects type string or any
+    // biome-ignore lint/suspicious/noExplicitAny:
+    let name: any
+    let child: ReverseContext
+    for (name in arrayDelta) {
+        if (name === '_t') {
+            continue
+        }
+        child = new ReverseContext(arrayDelta[name])
+        context.push(child, name)
+    }
+    context.exit()
+}
+hashReverseFilter.filterName = 'arrays'
+
+const reverseHashArrayDeltaIndex = function (
+    delta: HashArrayDelta,
+    index: HashArrayDeltaIndex,
+    // _itemDelta: Delta | HashDelta,
+): HashArrayDeltaIndex | number {
+    // TODO: this needs to be checked so it doesn't break something
+    if (!index) return -1
+    // We neednt worry about hash indexes here
+    if (index[1] === HASH_PREFIX) {
+        return index
+    }
+
+    // Return a new index based on sequences of moves, inserts, and removes
+    let reverseIndex = +index.slice(2)
+    for (const deltaIndex in delta) {
+        // const deltaItem = delta[deltaIndex]
+        const deltaItem = delta[deltaIndex as HashArrayDeltaIndex]
+        if (Array.isArray(deltaItem)) {
+            // Handle moves
+            if (deltaItem[3] === ARRAY_MOVE) {
+                const moveFromIndex = (deltaItem as HashArrayMovedDelta)[1]
+                const moveToIndex = (deltaItem as HashArrayMovedDelta)[2]
+                if (moveToIndex === +index) {
+                    return moveFromIndex
+                }
+                if (moveFromIndex <= reverseIndex && moveToIndex > reverseIndex) {
+                    reverseIndex++
+                } else if (moveFromIndex >= reverseIndex && moveToIndex < reverseIndex) {
+                    reverseIndex--
+                }
+                // Handle removals
+            } else if (deltaItem[3] === ARRAY_REMOVE) {
+                const deleteIndex = (deltaItem as HashArrayDeletedDelta)[1]
+                if (deleteIndex <= reverseIndex) {
+                    reverseIndex++
+                }
+                // Handle inserts
+            } else if (deltaItem.length === 1 && +deltaIndex.slice(2) <= reverseIndex) {
+                reverseIndex--
+            }
+        }
+    }
+
+    return `${index[0] as HashPrefixTypes}${INDEX_PREFIX}${reverseIndex.toString()}`
+}
+
+/**
+ * Reverse for arrays is a little bit tricky. We have two main filters–
+ * collectChildrenReverseFilter and reverseFilter–where collect is one of the
+ * first filters to run in the pipe, and reverse is one of the last filters to
+ * run.
+ *
+ * In the default jsondiffpatch arrays implementation, the key of the array
+ * delta object for a removal/move represents the old index of the item. However,
+ * in this implementation we want to use the key to track the objectHash of the
+ * item, so we need to figure out another place to store old index information.
+ *
+ * To do so we change the remove/move array structure to support four elements
+ * instead of three:
+ * [ value, oldIndex, newIndex, remove/move flag ]  (we added oldIndex)
+ *
+ * However, this caused an issue where array removals were first being processed
+ * by trivialReverseFilter – which still uses the three-item array syntax. To
+ * work around this, we move processing of array child elements into the collect
+ * filter since it is one of the first filters to run and we can intercept a
+ * change before its handled by trivialFilter
+ *
+ * So in practice, here is how an array is processed in these filters
+ *
+ * 1. collectChildrenReverseFilter
+ *   Receives array but children haven't been processed yet, so it's ignored
+ * 2. reverseFilter
+ *   Receives array, iterates over child keys and pushes them onto context children
+ * 3. collectChildrenReverseFilter
+ *   Executed for each child, we reverse each child delta
+ *   (except for modify, which can still be handled by trivialReverseFilter)
+ * 4. collectChildrenReverseFilter
+ *   Receives array again, fix array keys if necessary and mark array as complete
+ */
+export function collectChildrenHashReverseFilter(context: ReverseContext) {
+    if (!context) {
+        return
+    }
+    const matchContext = {
+        objectHash: context.options && context.options.objectHash,
+    }
+
+    // Handle array element children (see function description)
+    if (context.parent && context.parent.delta && (context.parent.delta as HashArrayDelta)._t === 'a') {
+        // FIXME: this needs to be properly typed
+        const contextDelta = context.delta as unknown[]
+        // Change inserts to removals
+        if (typeof context.childName === 'string' && context.childName[0] === INSERT_PREFIX) {
+            const oldindex = parseInt(context.childName?.slice(2), 10)
+            // FIXME: type needs to be extended on newName to support the hash variants casted to simple for now
+            context.newName = (REMOVE_PREFIX +
+                hashOrIndex(contextDelta[0] as Record<string, unknown>, oldindex, matchContext)) as `_${number}`
+            context.setResult([contextDelta[0], oldindex, 0, ARRAY_REMOVE]).exit()
+            return
+        }
+
+        // Handle move/remove
+        if (typeof context.childName === 'string' && context.childName[0] === REMOVE_PREFIX) {
+            // If it was originally a move, reverse the move
+            if (contextDelta[3] === ARRAY_MOVE) {
+                if (context.childName[1] === HASH_PREFIX) {
+                    // Continue using hash for new name
+                    // FIXME: type needs to be adjusted to support this operation without cast
+                    context.newName = context.childName as `_${number}`
+                } else {
+                    // Use index for new name
+                    context.newName = (REMOVE_PREFIX + INDEX_PREFIX + contextDelta[2]) as `_${number}`
+                }
+                context
+                    .setResult([contextDelta[0], contextDelta[2], contextDelta[1], ARRAY_MOVE] as HashArrayMovedDelta)
+                    .exit()
+                return
+            }
+
+            // If it was originally a removal, change to an insert
+            if (contextDelta[3] === ARRAY_REMOVE) {
+                context.newName = (INSERT_PREFIX + INDEX_PREFIX + contextDelta[1]) as `_${number}`
+                context.setResult([contextDelta[0]]).exit()
+                return
+            }
+        }
+
+        // If it was originally a MODIFY, let the "trivialReverseFilter" handle it
+        if (typeof context.childName === 'string' && context.childName[0] === MODIFY_PREFIX) {
+            return
+        }
+
+        return
+    }
+
+    // Handle processed array (see function description)
+    // NOTE: the block bellow has many casts with `as` which are a hack as it was ported from pure JS
+    if (context.children) {
+        const deltaWithChildren = context.delta as HashArrayDelta
+        if (deltaWithChildren._t !== 'a') {
+            return
+        }
+
+        const length = context.children.length
+        let child
+        const delta: HashArrayDelta = {
+            _t: 'a',
+        }
+
+        for (let index = 0; index < length; index++) {
+            child = context.children[index]
+            // Assign new name/index for child if not already assigned
+            let name: HashArrayDeltaIndex | `_${number}` | number | undefined = child.newName
+            if (typeof name === 'undefined') {
+                name = reverseHashArrayDeltaIndex(deltaWithChildren, child.childName as HashArrayDeltaIndex)
+            }
+            if (delta[name as HashArrayDeltaIndex] !== child.result) {
+                delta[name as HashArrayDeltaIndex] = child.result as HashArrayDelta
+            }
+        }
+        context.setResult(delta).exit()
+    }
+}
+collectChildrenHashReverseFilter.filterName = 'arraysCollectChildren'

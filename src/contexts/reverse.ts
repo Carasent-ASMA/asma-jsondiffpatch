@@ -1,14 +1,14 @@
-import type { Delta } from '../types.js'
+import type { Delta, HashDelta } from '../types.js'
 import Context from './context.js'
 
-class ReverseContext extends Context<Delta> {
-    delta: Delta
+class ReverseContext extends Context<Delta | HashDelta> {
+    delta: Delta | HashDelta
     pipe: 'reverse'
 
     nested?: boolean
     newName?: `_${number}`
 
-    constructor(delta: Delta) {
+    constructor(delta: Delta | HashDelta) {
         super()
         this.delta = delta
         this.pipe = 'reverse'

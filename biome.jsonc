@@ -88,6 +88,10 @@
                 "useValidForDirection": "error",
                 "useYield": "error"
             },
+            "performance": {
+                "noAccumulatingSpread": "error",
+                "noDelete": "error"
+            },
             "security": { "noDangerouslySetInnerHtmlWithChildren": "error" },
             "style": {
                 "noNamespace": "error",

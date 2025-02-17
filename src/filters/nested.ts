@@ -1,7 +1,7 @@
 import DiffContext from '../contexts/diff.js'
 import PatchContext from '../contexts/patch.js'
 import ReverseContext from '../contexts/reverse.js'
-import type { ArrayDelta, Delta, Filter, ObjectDelta } from '../types.js'
+import type { ArrayDelta, Delta, Filter, HashDelta, ObjectDelta } from '../types.js'
 
 export const collectChildrenDiffFilter: Filter<DiffContext> = (context) => {
     if (!context || !context.children) {
@@ -16,7 +16,7 @@ export const collectChildrenDiffFilter: Filter<DiffContext> = (context) => {
             continue
         }
         result = result || {}
-        ;(result as Record<string | number, Delta>)[child.childName!] = child.result
+        ;(result as Record<string | number, Delta | HashDelta>)[child.childName!] = child.result
     }
     if (result && context.leftIsArray) {
         result._t = 'a'

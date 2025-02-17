@@ -557,7 +557,8 @@ describe('DiffPatcher', () => {
 
             const expectFormat = (before: unknown, after: unknown, expected: string) => {
                 const diff = instance.diff(before, after)
-                const format = formatter.format(diff)
+                // FIXME: this needs to support HashDelta too, right now it works only with Delta
+                const format = formatter.format(diff as jsondiffpatch.Delta)
                 expect(format).toEqual(expected)
             }
 

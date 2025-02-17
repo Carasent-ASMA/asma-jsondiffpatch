@@ -1,8 +1,8 @@
 import defaultClone from '../clone.js'
-import type { Delta } from '../types.js'
+import type { Delta, HashArrayDelta } from '../types.js'
 import Context from './context.js'
 
-class DiffContext extends Context<Delta> {
+class DiffContext extends Context<Delta | HashArrayDelta> {
     left: unknown
     right: unknown
     pipe: 'diff'
@@ -19,7 +19,7 @@ class DiffContext extends Context<Delta> {
         this.pipe = 'diff'
     }
 
-    setResult(result: Delta) {
+    setResult(result: Delta | HashArrayDelta) {
         if (this.options!.cloneDiffValues && typeof result === 'object') {
             const clone =
                 typeof this.options!.cloneDiffValues === 'function' ? this.options!.cloneDiffValues : defaultClone

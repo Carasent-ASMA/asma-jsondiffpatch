@@ -23,7 +23,7 @@ export type ModifiedDelta = [unknown, unknown]
 export type DeletedDelta = [unknown, 0, 0]
 
 export interface ObjectDelta {
-    [property: string]: Delta
+    [property: string]: Delta | HashDelta
 }
 
 export interface ArrayDelta {
@@ -38,11 +38,16 @@ export type MovedDelta = [unknown, number, 3]
 
 export interface HashArrayDelta {
     _t: 'a'
+    // NOTE: this is only for types
+    [index: number | `${number}`]: HashDelta
     [index: HashArrayDeltaIndex]: HashDelta
 }
 
-export type HashArrayDeltaIndex =
-    `${typeof REMOVE_PREFIX | typeof INSERT_PREFIX | typeof MODIFY_PREFIX}${typeof INDEX_PREFIX | typeof HASH_PREFIX}${string}`
+export type HashPrefixTypes = typeof REMOVE_PREFIX | typeof INSERT_PREFIX | typeof MODIFY_PREFIX
+
+export type HashIndex = `${typeof INDEX_PREFIX | typeof HASH_PREFIX}${string}`
+
+export type HashArrayDeltaIndex = `${HashPrefixTypes}${HashIndex}`
 
 export type HashArrayMovedDelta = [unknown, number, number, 3]
 
