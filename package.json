@@ -1,6 +1,6 @@
 {
     "name": "asma-jsondiffpatch",
-    "version": "1.0.9",
+    "version": "1.0.10",
     "description": "Diff & Patch for Javascript objects",
     "homepage": "https://bitbucket.org/carasent/asma-jsondiffpatch#readme",
     "bugs": {
@@ -13,7 +13,9 @@
     "license": "UNLICENSED",
     "author": "asma-team",
     "type": "module",
-    "sideEffects": ["*.css"],
+    "sideEffects": [
+        "*.css"
+    ],
     "main": "./lib/jsondiffpatch.js",
     "types": "./lib",
     "exports": {
@@ -37,7 +39,9 @@
         },
         "./formatters/styles/*.css": "./lib/formatters/styles/*.css"
     },
-    "files": ["lib"],
+    "files": [
+        "lib"
+    ],
     "scripts": {
         "build": "npx tsc && vite build ",
         "lint": "biome lint src/**/*.ts",
