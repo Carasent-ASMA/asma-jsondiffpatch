@@ -13,23 +13,31 @@
     "license": "UNLICENSED",
     "author": "asma-team",
     "type": "module",
-    "sideEffects": [
-        "*.css"
-    ],
+    "sideEffects": ["*.css"],
     "main": "./lib/jsondiffpatch.js",
     "types": "./lib",
     "exports": {
         ".": {
-            "import": "./lib/jsondiffpatch.js"
+            "import": {
+                "types": "./lib/index.d.ts",
+                "default": "./lib/jsondiffpatch.js"
+            }
         },
-        "./with-text-diffs": "./lib/with-text-diffs.js",
-        "./filters/*": "./lib/filters/*.js",
-        "./formatters/*": "./lib/formatters/*.js",
+        "./with-text-diffs": {
+            "types": "./lib/with-text-diffs.d.ts",
+            "default": "./lib/with-text-diffs.js"
+        },
+        "./filters/*": {
+            "types": "./lib/filters/*.d.ts",
+            "default": "./lib/filters/*.js"
+        },
+        "./formatters/*": {
+            "types": "./lib/formatters/*.d.ts",
+            "default": "./lib/formatters/*.js"
+        },
         "./formatters/styles/*.css": "./lib/formatters/styles/*.css"
     },
-    "files": [
-        "lib"
-    ],
+    "files": ["lib"],
     "scripts": {
         "build": "npx tsc && vite build ",
         "lint": "biome lint src/**/*.ts",
