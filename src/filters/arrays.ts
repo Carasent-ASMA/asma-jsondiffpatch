@@ -343,7 +343,8 @@ export function hashDiffFilter(context: DiffContext) {
             _t: 'a',
         }
         for (index = commonHead; index < len2 - commonTail; index++) {
-            result[`${INSERT_PREFIX}${INDEX_PREFIX}${index}`] = [array2[index]]
+            hashKey = hashOrIndex(array2[index] as Record<string, unknown>, index, matchContext)
+            result[`${INSERT_PREFIX}${INDEX_PREFIX}${hashKey}`] = [array2[index]]
         }
         context.setResult(result).exit()
         return
@@ -403,7 +404,6 @@ export function hashDiffFilter(context: DiffContext) {
                         hashKey = hashOrIndex(array1[index1] as Record<string, unknown>, index1, matchContext)
                         // store position move as: [originalValue, originalPosition, newPosition, ARRAY_MOVE]
                         const movedDelta = result[`${REMOVE_PREFIX}${hashKey}`] as HashArrayMovedDelta
-                        // const movedDelta = result[`${REMOVE_PREFIX}${hashKey}`]
                         movedDelta?.splice(1, 3, index1, index, ARRAY_MOVE)
                         if (!includeValueOnMove) {
                             // don't include moved value on diff, to save bytes
@@ -422,7 +422,8 @@ export function hashDiffFilter(context: DiffContext) {
             }
             if (!isMove) {
                 // added
-                result[`${INSERT_PREFIX}${INDEX_PREFIX}${index}`] = [array2[index]]
+                hashKey = hashOrIndex(array2[index] as Record<string, unknown>, index, matchContext)
+                result[`${INSERT_PREFIX}${INDEX_PREFIX}${hashKey}`] = [array2[index]]
             }
         } else {
             // match, do inner diff
