@@ -589,6 +589,7 @@ collectChildrenPatchFilter.filterName = 'arraysCollectChildren'
  * };
  */
 export function hashPatchFilter(context: PatchContext) {
+    console.log('inside hashPatchFilter')
     if (!context.nested) {
         return
     }
@@ -614,6 +615,7 @@ export function hashPatchFilter(context: PatchContext) {
     const toRemove: Record<string, boolean> = {}
     let toInsert = []
     const toModify: Record<string, HashDelta> = {}
+    console.log('delta for patching: ', delta)
     for (index in delta) {
         if (index !== '_t' && typeof index !== 'number') {
             if (index[0] === REMOVE_PREFIX) {
@@ -630,6 +632,7 @@ export function hashPatchFilter(context: PatchContext) {
                 if (index[0] === INSERT_PREFIX) {
                     // added item at new array
                     toInsert.push({
+                        //FIXME: this is broken with hash additions
                         index: parseInt(index.slice(2), 10),
                         value: (delta[index] as AddedDelta | undefined)?.[0],
                     })
@@ -671,6 +674,7 @@ export function hashPatchFilter(context: PatchContext) {
         }
     }
 
+    // FIXME: the below stuff is broken because of hash indices
     // insert items, in reverse order to avoid moving our own floor
     toInsert = toInsert.sort(compare.numericallyBy('index'))
     const toInsertLength = toInsert.length
