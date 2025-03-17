@@ -9,6 +9,9 @@ export interface Options {
     arrays?: {
         detectMove?: boolean
         includeValueOnMove?: boolean
+        dedupeHashInserts?: boolean
+        // NOTE: will be used in a potential future version
+        // replaceExistingInserts?: boolean
     }
     textDiff?: {
         diffMatchPatch: typeof dmp
@@ -49,12 +52,14 @@ export type HashIndex = `${typeof INDEX_PREFIX | typeof HASH_PREFIX}${string}`
 
 export type HashArrayDeltaIndex = `${HashPrefixTypes}${HashIndex}`
 
+export type HashArrayAddedDelta = [unknown, number, 4]
+
 export type HashArrayMovedDelta = [unknown, number, number, 3]
 
 export type HashArrayDeletedDelta = [unknown, number, 0, 0]
 
 export type HashDelta =
-    | AddedDelta
+    | HashArrayAddedDelta
     | ModifiedDelta
     | HashArrayDeletedDelta
     | ObjectDelta
