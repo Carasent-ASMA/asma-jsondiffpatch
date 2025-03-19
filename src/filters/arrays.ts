@@ -671,10 +671,7 @@ export function hashPatchFilter(context: PatchContext) {
     // remove items, in reverse order to avoid sawing our own floor
     toRemoveIndexes = toRemoveIndexes.sort(compare.numerically)
     for (index = toRemoveIndexes.length - 1; index >= 0; index--) {
-        const indexToRemove = toRemoveIndexes[index]
-        if (indexToRemove) {
-            array.splice(indexToRemove, 1)
-        }
+        array.splice(toRemoveIndexes[index], 1)
     }
 
     // insert items, in reverse order to avoid moving our own floor
@@ -868,80 +865,77 @@ collectChildrenReverseFilter.filterName = 'arraysCollectChildren'
  *   "-#f3f2e850-b5d4-11ef-ac7e-96584d5248b2": innerDelta2,
  * };
  */
-// FIXME: broken at the moment dont use
-// export function hashReverseFilter(context: ReverseContext) {
-//     if (!context.nested) {
-//         return
-//     }
-//
-//     const nestedDelta = context.delta as ObjectDelta | HashArrayDelta
-//     if (nestedDelta._t !== 'a') {
-//         return
-//     }
-//
-//     const arrayDelta = nestedDelta as HashArrayDelta
-//     // let name: HashArrayDeltaIndex | '_t'
-//     // FIXME: type number causes the for in to error as it expects type string or any
-//     // biome-ignore lint/suspicious/noExplicitAny:
-//     let name: any
-//     let child: ReverseContext
-//     for (name in arrayDelta) {
-//         if (name === '_t') {
-//             continue
-//         }
-//         child = new ReverseContext(arrayDelta[name])
-//         context.push(child, name)
-//     }
-//     context.exit()
-// }
-// hashReverseFilter.filterName = 'arrays'
+export function hashReverseFilter(context: ReverseContext) {
+    if (!context.nested) {
+        return
+    }
 
-// FIXME: needs to be fixed for hash indices
-// const reverseHashArrayDeltaIndex = function (
-//     delta: HashArrayDelta,
-//     index: HashArrayDeltaIndex,
-//     // _itemDelta: Delta | HashDelta,
-// ): HashArrayDeltaIndex | number {
-//     // TODO: this needs to be checked so it doesn't break something
-//     if (!index) return -1
-//     // We neednt worry about hash indexes here
-//     if (index[1] === HASH_PREFIX) {
-//         return index
-//     }
-//
-//     // Return a new index based on sequences of moves, inserts, and removes
-//     let reverseIndex = +index.slice(2)
-//     for (const deltaIndex in delta) {
-//         // const deltaItem = delta[deltaIndex]
-//         const deltaItem = delta[deltaIndex as HashArrayDeltaIndex]
-//         if (Array.isArray(deltaItem)) {
-//             // Handle moves
-//             if (deltaItem[3] === ARRAY_MOVE) {
-//                 const moveFromIndex = (deltaItem as HashArrayMovedDelta)[1]
-//                 const moveToIndex = (deltaItem as HashArrayMovedDelta)[2]
-//                 if (moveToIndex === +index) {
-//                     return moveFromIndex
-//                 }
-//                 if (moveFromIndex <= reverseIndex && moveToIndex > reverseIndex) {
-//                     reverseIndex++
-//                 } else if (moveFromIndex >= reverseIndex && moveToIndex < reverseIndex) {
-//                     reverseIndex--
-//                 }
-//                 // Handle removals
-//             } else if (deltaItem[3] === ARRAY_REMOVE) {
-//                 const deleteIndex = (deltaItem as HashArrayDeletedDelta)[1]
-//                 if (deleteIndex <= reverseIndex) {
-//                     reverseIndex++
-//                 }
-//                 // Handle inserts
-//             } else if (deltaItem.length === 1 && +deltaIndex.slice(2) <= reverseIndex) {
-//                 reverseIndex--
-//             }
-//         }
-//     }
-//
-//     return `${index[0] as HashPrefixTypes}${INDEX_PREFIX}${reverseIndex.toString()}`
-// }
+    const nestedDelta = context.delta as ObjectDelta | HashArrayDelta
+    if (nestedDelta._t !== 'a') {
+        return
+    }
+
+    const arrayDelta = nestedDelta as HashArrayDelta
+    // let name: HashArrayDeltaIndex | '_t'
+    // FIXME: type number causes the for in to error as it expects type string or any
+    // biome-ignore lint/suspicious/noExplicitAny:
+    let name: any
+    let child: ReverseContext
+    for (name in arrayDelta) {
+        if (name === '_t') {
+            continue
+        }
+        child = new ReverseContext(arrayDelta[name])
+        context.push(child, name)
+    }
+    context.exit()
+}
+hashReverseFilter.filterName = 'arrays'
+
+const reverseHashArrayDeltaIndex = function (
+    delta: HashArrayDelta,
+    index: HashArrayDeltaIndex,
+): HashArrayDeltaIndex | number {
+    // TODO: this needs to be checked so it doesn't break something
+    if (!index) return -1
+    // We neednt worry about hash indexes here
+    if (index[1] === HASH_PREFIX) {
+        return index
+    }
+
+    // Return a new index based on sequences of moves, inserts, and removes
+    let reverseIndex = +index.slice(2)
+    for (const deltaIndex in delta) {
+        // const deltaItem = delta[deltaIndex]
+        const deltaItem = delta[deltaIndex as HashArrayDeltaIndex]
+        if (Array.isArray(deltaItem)) {
+            // Handle moves
+            if (deltaItem[3] === ARRAY_MOVE) {
+                const moveFromIndex = (deltaItem as HashArrayMovedDelta)[1]
+                const moveToIndex = (deltaItem as HashArrayMovedDelta)[2]
+                if (moveToIndex === +index) {
+                    return moveFromIndex
+                }
+                if (moveFromIndex <= reverseIndex && moveToIndex > reverseIndex) {
+                    reverseIndex++
+                } else if (moveFromIndex >= reverseIndex && moveToIndex < reverseIndex) {
+                    reverseIndex--
+                }
+                // Handle removals
+            } else if (deltaItem[3] === ARRAY_REMOVE) {
+                const deleteIndex = (deltaItem as HashArrayDeletedDelta)[1]
+                if (deleteIndex <= reverseIndex) {
+                    reverseIndex++
+                }
+                // Handle inserts
+            } else if (deltaItem[2] === ARRAY_INSERT && +deltaIndex.slice(2) <= reverseIndex) {
+                reverseIndex--
+            }
+        }
+    }
+
+    return `${index[0] as HashPrefixTypes}${INDEX_PREFIX}${reverseIndex.toString()}`
+}
 
 /**
  * Reverse for arrays is a little bit tricky. We have two main filters–
@@ -976,89 +970,95 @@ collectChildrenReverseFilter.filterName = 'arraysCollectChildren'
  * 4. collectChildrenReverseFilter
  *   Receives array again, fix array keys if necessary and mark array as complete
  */
-// FIXME: this is broken right now dont use
-// export function collectChildrenHashReverseFilter(context: ReverseContext) {
-//     if (!context) {
-//         return
-//     }
-//     const matchContext = {
-//         objectHash: context.options && context.options.objectHash,
-//     }
-//
-//     // Handle array element children (see function description)
-//     if (context.parent && context.parent.delta && (context.parent.delta as HashArrayDelta)._t === 'a') {
-//         // FIXME: this needs to be properly typed
-//         const contextDelta = context.delta as unknown[]
-//         // Change inserts to removals
-//         if (typeof context.childName === 'string' && context.childName[0] === INSERT_PREFIX) {
-//             const oldindex = parseInt(context.childName?.slice(2), 10)
-//             // FIXME: type needs to be extended on newName to support the hash variants casted to simple for now
-//             context.newName = (REMOVE_PREFIX +
-//                 hashOrIndex(contextDelta[0] as Record<string, unknown>, oldindex, matchContext)) as `_${number}`
-//             context.setResult([contextDelta[0], oldindex, 0, ARRAY_REMOVE]).exit()
-//             return
-//         }
-//
-//         // Handle move/remove
-//         if (typeof context.childName === 'string' && context.childName[0] === REMOVE_PREFIX) {
-//             // If it was originally a move, reverse the move
-//             if (contextDelta[3] === ARRAY_MOVE) {
-//                 if (context.childName[1] === HASH_PREFIX) {
-//                     // Continue using hash for new name
-//                     // FIXME: type needs to be adjusted to support this operation without cast
-//                     context.newName = context.childName as `_${number}`
-//                 } else {
-//                     // Use index for new name
-//                     context.newName = (REMOVE_PREFIX + INDEX_PREFIX + contextDelta[2]) as `_${number}`
-//                 }
-//                 context
-//                     .setResult([contextDelta[0], contextDelta[2], contextDelta[1], ARRAY_MOVE] as HashArrayMovedDelta)
-//                     .exit()
-//                 return
-//             }
-//
-//             // If it was originally a removal, change to an insert
-//             if (contextDelta[3] === ARRAY_REMOVE) {
-//                 context.newName = (INSERT_PREFIX + INDEX_PREFIX + contextDelta[1]) as `_${number}`
-//                 context.setResult([contextDelta[0]]).exit()
-//                 return
-//             }
-//         }
-//
-//         // If it was originally a MODIFY, let the "trivialReverseFilter" handle it
-//         if (typeof context.childName === 'string' && context.childName[0] === MODIFY_PREFIX) {
-//             return
-//         }
-//
-//         return
-//     }
-//
-//     // Handle processed array (see function description)
-//     // NOTE: the block bellow has many casts with `as` which are a hack as it was ported from pure JS
-//     if (context.children) {
-//         const deltaWithChildren = context.delta as HashArrayDelta
-//         if (deltaWithChildren._t !== 'a') {
-//             return
-//         }
-//
-//         const length = context.children.length
-//         let child
-//         const delta: HashArrayDelta = {
-//             _t: 'a',
-//         }
-//
-//         for (let index = 0; index < length; index++) {
-//             child = context.children[index]
-//             // Assign new name/index for child if not already assigned
-//             let name: HashArrayDeltaIndex | `_${number}` | number | undefined = child.newName
-//             if (typeof name === 'undefined') {
-//                 name = reverseHashArrayDeltaIndex(deltaWithChildren, child.childName as HashArrayDeltaIndex)
-//             }
-//             if (delta[name as HashArrayDeltaIndex] !== child.result) {
-//                 delta[name as HashArrayDeltaIndex] = child.result as HashArrayDelta
-//             }
-//         }
-//         context.setResult(delta).exit()
-//     }
-// }
-// collectChildrenHashReverseFilter.filterName = 'arraysCollectChildren'
+export function collectChildrenHashReverseFilter(context: ReverseContext) {
+    if (!context) {
+        return
+    }
+    const matchContext = {
+        objectHash: context.options && context.options.objectHash,
+    }
+
+    // Handle array element children (see function description)
+    if (context.parent && context.parent.delta && (context.parent.delta as HashArrayDelta)._t === 'a') {
+        const contextDelta = context.delta as HashDelta
+        if (!contextDelta) return
+
+        // Change inserts to removals
+        if (typeof context.childName === 'string' && context.childName[0] === INSERT_PREFIX) {
+            // const oldindex = parseInt(context.childName?.slice(2), 10)
+            const oldindex = contextDelta[1] as number
+            // FIXME: type needs to be extended on newName to support the hash variants casted to simple for now
+            context.newName = (REMOVE_PREFIX +
+                hashOrIndex(contextDelta[0] as Record<string, unknown>, oldindex, matchContext)) as `_${number}`
+            context.setResult([contextDelta[0], oldindex, 0, ARRAY_REMOVE]).exit()
+            return
+        }
+
+        // Handle move/remove
+        if (typeof context.childName === 'string' && context.childName[0] === REMOVE_PREFIX) {
+            // If it was originally a move, reverse the move
+            if (contextDelta[3] === ARRAY_MOVE) {
+                if (context.childName[1] === HASH_PREFIX) {
+                    // Continue using hash for new name
+                    // FIXME: type needs to be adjusted to support this operation without cast
+                    context.newName = context.childName as `_${number}`
+                } else {
+                    // Use index for new name
+                    context.newName = (REMOVE_PREFIX + INDEX_PREFIX + contextDelta[2]) as `_${number}`
+                }
+                context
+                    .setResult([contextDelta[0], contextDelta[2], contextDelta[1], ARRAY_MOVE] as HashArrayMovedDelta)
+                    .exit()
+                return
+            }
+
+            // If it was originally a removal, change to an insert
+            if (contextDelta[3] === ARRAY_REMOVE) {
+                const hash = hashOrIndex(
+                    contextDelta[0] as Record<string, unknown>,
+                    contextDelta[1] as number,
+                    matchContext,
+                )
+                context.newName = `${INSERT_PREFIX}${hash}` as `_${number}`
+                context.setResult([contextDelta[0], contextDelta[1], ARRAY_INSERT] as HashArrayAddedDelta).exit()
+                return
+            }
+        }
+
+        // If it was originally a MODIFY, let the "trivialReverseFilter" handle it
+        if (typeof context.childName === 'string' && context.childName[0] === MODIFY_PREFIX) {
+            return
+        }
+
+        return
+    }
+
+    // Handle processed array (see function description)
+    // NOTE: the block bellow has many casts with `as` which are a hack as it was ported from pure JS
+    if (context.children) {
+        const deltaWithChildren = context.delta as HashArrayDelta
+        if (deltaWithChildren._t !== 'a') {
+            return
+        }
+
+        const length = context.children.length
+        let child
+        const delta: HashArrayDelta = {
+            _t: 'a',
+        }
+
+        for (let index = 0; index < length; index++) {
+            child = context.children[index]
+            // Assign new name/index for child if not already assigned
+            let name: HashArrayDeltaIndex | `_${number}` | number | undefined = child.newName
+            if (typeof name === 'undefined') {
+                name = reverseHashArrayDeltaIndex(deltaWithChildren, child.childName as HashArrayDeltaIndex)
+            }
+            if (delta[name as HashArrayDeltaIndex] !== child.result) {
+                delta[name as HashArrayDeltaIndex] = child.result as HashArrayDelta
+            }
+        }
+        context.setResult(delta).exit()
+    }
+}
+collectChildrenHashReverseFilter.filterName = 'arraysCollectChildren'
