@@ -3,6 +3,9 @@ import type {
     ArrayDelta,
     DeletedDelta,
     Delta,
+    HashArrayAddedDelta,
+    HashArrayDeletedDelta,
+    HashArrayMovedDelta,
     ModifiedDelta,
     MovedDelta,
     ObjectDelta,
@@ -105,7 +108,7 @@ class HtmlFormatter extends BaseFormatter<HtmlFormatterContext> {
         context.out('</ul>')
     }
 
-    format_added(context: HtmlFormatterContext, delta: AddedDelta) {
+    format_added(context: HtmlFormatterContext, delta: AddedDelta | HashArrayAddedDelta) {
         context.out('<div class="jsondiffpatch-value">')
         this.formatValue(context, delta[0])
         context.out('</div>')
@@ -119,13 +122,13 @@ class HtmlFormatter extends BaseFormatter<HtmlFormatterContext> {
         context.out('</div>')
     }
 
-    format_deleted(context: HtmlFormatterContext, delta: DeletedDelta) {
+    format_deleted(context: HtmlFormatterContext, delta: DeletedDelta | HashArrayDeletedDelta) {
         context.out('<div class="jsondiffpatch-value">')
         this.formatValue(context, delta[0])
         context.out('</div>')
     }
 
-    format_moved(context: HtmlFormatterContext, delta: MovedDelta) {
+    format_moved(context: HtmlFormatterContext, delta: MovedDelta | HashArrayMovedDelta) {
         context.out('<div class="jsondiffpatch-value">')
         this.formatValue(context, delta[0])
         context.out(`</div><div class="jsondiffpatch-moved-destination">${delta[1]}</div>`)

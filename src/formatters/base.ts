@@ -1,8 +1,14 @@
+import { HASH_PREFIX, INDEX_PREFIX } from 'src/filters/arrays.js'
 import type {
     AddedDelta,
     ArrayDelta,
     DeletedDelta,
     Delta,
+    HashArrayAddedDelta,
+    HashArrayDeletedDelta,
+    HashArrayDelta,
+    HashArrayMovedDelta,
+    HashDelta,
     ModifiedDelta,
     MovedDelta,
     ObjectDelta,
@@ -49,12 +55,12 @@ export type NodeType = 'array' | 'object' | ''
 interface DeltaTypeMap {
     movedestination: undefined
     unchanged: undefined
-    added: AddedDelta
+    added: AddedDelta | HashArrayAddedDelta
     modified: ModifiedDelta
-    deleted: DeletedDelta
+    deleted: DeletedDelta | HashArrayDeletedDelta
     textdiff: TextDiffDelta
-    moved: MovedDelta
-    node: ObjectDelta | ArrayDelta
+    moved: MovedDelta | HashArrayMovedDelta
+    node: ObjectDelta | ArrayDelta | HashArrayDelta
 }
 
 interface MoveDestination {
@@ -149,8 +155,8 @@ abstract class BaseFormatter<TContext extends BaseFormatterContext, TFormatted =
         const nodeType = type === 'node' ? ((delta as ArrayDelta)._t === 'a' ? 'array' : 'object') : ''
 
         // TODO: this needs to be checked so it doesnt break with the undefined checks that were added
-        if (typeof key !== 'undefined' && typeof leftKey !== 'undefined' && typeof isLast !== 'undefined') {
-            this.nodeBegin(context, key, leftKey, type, nodeType, isLast)
+        if (typeof key !== 'undefined' && typeof leftKey !== 'undefined') {
+            this.nodeBegin(context, key, leftKey, type, nodeType, isLast ?? false)
         } else {
             this.rootBegin(context, type, nodeType)
         }
@@ -179,14 +185,14 @@ abstract class BaseFormatter<TContext extends BaseFormatterContext, TFormatted =
         }
 
         // TODO: this needs to be checked so it doesnt break with the undefined checks that were added
-        if (typeof key !== 'undefined' && typeof leftKey !== 'undefined' && typeof isLast !== 'undefined') {
-            this.nodeEnd(context, key, leftKey, type, nodeType, isLast)
+        if (typeof key !== 'undefined' && typeof leftKey !== 'undefined') {
+            this.nodeEnd(context, key, leftKey, type, nodeType, isLast ?? false)
         } else {
             this.rootEnd(context, type, nodeType)
         }
     }
 
-    formatDeltaChildren(context: TContext, delta: ObjectDelta | ArrayDelta, left: unknown) {
+    formatDeltaChildren(context: TContext, delta: ObjectDelta | ArrayDelta | HashArrayDelta, left: unknown) {
         this.forEachDeltaKey(delta, left, (key, leftKey, movedFrom, isLast) => {
             this.recurse(
                 context,
@@ -201,7 +207,7 @@ abstract class BaseFormatter<TContext extends BaseFormatterContext, TFormatted =
     }
 
     forEachDeltaKey(
-        delta: ObjectDelta | ArrayDelta,
+        delta: ObjectDelta | ArrayDelta | HashArrayDelta,
         left: unknown,
         fn: (
             key: string,
@@ -231,9 +237,9 @@ abstract class BaseFormatter<TContext extends BaseFormatterContext, TFormatted =
         // look for move destinations
         for (name in delta) {
             if (Object.prototype.hasOwnProperty.call(delta, name)) {
-                const value = (delta as Record<string, Delta>)[name]
-                if (Array.isArray(value) && value[2] === 3) {
-                    const movedDelta = value as MovedDelta
+                const value = (delta as Record<string, Delta | HashDelta>)[name]
+                if (Array.isArray(value) && (value[2] === 3 || value[3] === 3)) {
+                    const movedDelta = value as MovedDelta | HashArrayMovedDelta
                     moveDestinations[`${movedDelta[1]}`] = {
                         key: name as `_${number}`,
                         value: left && (left as unknown[])[Number.parseInt(name.substring(1), 10)],
@@ -259,13 +265,18 @@ abstract class BaseFormatter<TContext extends BaseFormatterContext, TFormatted =
             if (arrayKeys && key === '_t') {
                 continue
             }
-            const leftKey = arrayKeys ? Number.parseInt(trimUnderscore(key), 10) : key
+            let leftKey: string | number = key
+            if (arrayKeys) {
+                if (key[1] !== HASH_PREFIX && key[1] !== INDEX_PREFIX) {
+                    leftKey = Number.parseInt(trimUnderscore(key), 10)
+                }
+            }
             const isLast = index === length - 1
             fn(key, leftKey, moveDestinations[leftKey], isLast)
         }
     }
 
-    getDeltaType(delta: Delta, movedFrom?: MoveDestination | undefined) {
+    getDeltaType(delta: Delta | HashDelta, movedFrom?: MoveDestination | undefined) {
         if (typeof delta === 'undefined') {
             if (typeof movedFrom !== 'undefined') {
                 return 'movedestination'
@@ -273,19 +284,19 @@ abstract class BaseFormatter<TContext extends BaseFormatterContext, TFormatted =
             return 'unchanged'
         }
         if (Array.isArray(delta)) {
-            if (delta.length === 1) {
+            if (delta.length === 1 || (delta.length === 3 && delta[2] === 4)) {
                 return 'added'
             }
             if (delta.length === 2) {
                 return 'modified'
             }
-            if (delta.length === 3 && delta[2] === 0) {
+            if ((delta.length === 3 && delta[2] === 0) || (delta.length === 4 && delta[2] === 0 && delta[3] === 0)) {
                 return 'deleted'
             }
             if (delta.length === 3 && delta[2] === 2) {
                 return 'textdiff'
             }
-            if (delta.length === 3 && delta[2] === 3) {
+            if ((delta.length === 3 && delta[2] === 3) || (delta.length === 4 && delta[3] === 3)) {
                 return 'moved'
             }
         } else if (typeof delta === 'object') {
@@ -387,7 +398,7 @@ abstract class BaseFormatter<TContext extends BaseFormatterContext, TFormatted =
 
     abstract format_added(
         context: TContext,
-        delta: AddedDelta,
+        delta: AddedDelta | HashArrayAddedDelta,
         leftValue: unknown,
         key: string | undefined,
         leftKey: string | number | undefined,
@@ -405,7 +416,7 @@ abstract class BaseFormatter<TContext extends BaseFormatterContext, TFormatted =
 
     abstract format_deleted(
         context: TContext,
-        delta: DeletedDelta,
+        delta: DeletedDelta | HashArrayDeletedDelta,
         leftValue: unknown,
         key: string | undefined,
         leftKey: string | number | undefined,
@@ -414,7 +425,7 @@ abstract class BaseFormatter<TContext extends BaseFormatterContext, TFormatted =
 
     abstract format_moved(
         context: TContext,
-        delta: MovedDelta,
+        delta: MovedDelta | HashArrayMovedDelta,
         leftValue: unknown,
         key: string | undefined,
         leftKey: string | number | undefined,
