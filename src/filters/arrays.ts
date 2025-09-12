@@ -682,6 +682,11 @@ export function hashPatchFilter(context: PatchContext) {
             const insertion = toInsert[i]
             const hash = matchContext.objectHash?.(insertion.value as object)
 
+            if (!hash) {
+                array.splice(insertion?.index, 0, insertion?.value)
+                continue
+            }
+
             let exists = !array.length ? false : true
             for (let j = 0; j < array.length; j++) {
                 const existingHash = matchContext.objectHash?.(array[j] as object)
