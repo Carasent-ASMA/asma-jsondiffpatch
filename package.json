@@ -51,7 +51,7 @@
         "test": "jest --coverage"
     },
     "devDependencies": {
-        "@biomejs/biome": "1.9.4",
+        "@biomejs/biome": "2.4.14",
         "@rollup/plugin-terser": "^0.4.4",
         "@types/diff-match-patch": "^1.0.36",
         "@types/jest": "^29.5.14",
