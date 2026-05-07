@@ -2,13 +2,10 @@
     "name": "asma-jsondiffpatch",
     "version": "1.0.16",
     "description": "Diff & Patch for Javascript objects",
-    "homepage": "https://bitbucket.org/carasent/asma-jsondiffpatch#readme",
-    "bugs": {
-        "url": "https://bitbucket.org/carasent/asma-jsondiffpatch/issues"
-    },
+    "homepage": "https://github.com/Carasent-ASMA/asma-jsondiffpatch",
     "repository": {
         "type": "git",
-        "url": "git+ssh://git@bitbucket.org/carasent/asma-jsondiffpatch.git"
+        "url": "git@github.com:Carasent-ASMA/asma-jsondiffpatch.git"
     },
     "license": "UNLICENSED",
     "author": "asma-team",
