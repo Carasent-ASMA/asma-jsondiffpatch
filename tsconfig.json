@@ -9,15 +9,15 @@
 
         "allowJs": false,
         // "skipLibCheck": true,
-        "esModuleInterop": false,
+        "ignoreDeprecations": "6.0",
         "strict": true,
         "forceConsistentCasingInFileNames": true,
         "noEmit": true,
-        "baseUrl": ".",
         "paths": {
-            "jsondiffpatch/with-text-diffs": ["lib/with-text-diffs"],
-            "jsondiffpatch/filters/*": ["lib/filters/*"],
-            "jsondiffpatch/formatters/*": ["lib/formatters/*"]
+            "*": ["./*"],
+            "jsondiffpatch/with-text-diffs": ["./lib/with-text-diffs"],
+            "jsondiffpatch/filters/*": ["./lib/filters/*"],
+            "jsondiffpatch/formatters/*": ["./lib/formatters/*"]
         },
         "module": "ESNext",
         "moduleResolution": "bundler",
